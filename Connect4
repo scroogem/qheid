@@ -191,3 +191,214 @@ def main_menu():
 
 if __name__ == "__main__":
     main_menu()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import os
+import random
+from itertools import cycle
+
+class ConnectFour:
+    def __init__(self, rows=6, cols=7):
+        self.rows = rows
+        self.cols = cols
+        self.grid = [[' ' for _ in range(cols)] for _ in range(rows)]
+        self.players = ['Joueur 1', 'Joueur 2']
+        self.current_player = 0
+        self.game_modes = {
+            1: ('2 Joueurs', self.two_players_mode),
+            2: ('VS AI (Facile)', self.ai_mode_random),
+            3: ('VS AI (Expert)', self.ai_mode_smart)
+        }
+        self.symbols = ['X', 'O']
+        self.scoreboard = {'Joueur 1': 0, 'Joueur 2': 0, 'AI': 0}
+
+    def clear_screen(self):
+        os.system('cls' if os.name == 'nt' else 'clear')
+
+    def show_menu(self):
+        while True:
+            self.clear_screen()
+            print("=== MENU PRINCIPAL ===")
+            print("1. Nouvelle partie")
+            print("2. Règles du jeu")
+            print("3. Scores")
+            print("4. Quitter")
+            choice = input("Choix: ")
+
+            if choice == '1':
+                self.select_game_mode()
+            elif choice == '2':
+                self.show_rules()
+            elif choice == '3':
+                self.show_scores()
+            elif choice == '4':
+                exit()
+            else:
+                input("Choix invalide. Appuyez sur Entrée...")
+
+    def show_scores(self):
+        self.clear_screen()
+        print("=== TABLEAU DES SCORES ===")
+        for player, score in self.scoreboard.items():
+            print(f"{player}: {score}")
+        input("\nAppuyez sur Entrée pour continuer...")
+
+    def select_game_mode(self):
+        self.clear_screen()
+        print("=== MODE DE JEU ===")
+        for num, (name, _) in self.game_modes.items():
+            print(f"{num}. {name}")
+        choice = input("Choix: ")
+        
+        if choice in map(str, self.game_modes.keys()):
+            self.setup_game(int(choice))
+        else:
+            input("Choix invalide. Appuyez sur Entrée...")
+
+    def show_rules(self):
+        self.clear_screen()
+        print("=== RÈGLES DU JEU ===")
+        print("Le but est d'aligner 4 pions de sa couleur")
+        print("Horizontalement, verticalement ou en diagonale.")
+        print("Choisissez une colonne (1-7) pour placer votre pion.")
+        print("Le premier joueur à aligner 4 pions gagne !")
+        input("\nAppuyez sur Entrée pour continuer...")
+
+    def setup_game(self, mode):
+        self.__init__()  # Réinitialiser le jeu
+        if mode > 1:
+            self.players[1] = 'AI'
+        self.game_modes[mode][1]()
+
+    def two_players_mode(self):
+        self.play_game()
+
+    def ai_mode_random(self):
+        self.play_game(ai=True)
+
+    def ai_mode_smart(self):
+        self.play_game(ai=True, smart=True)
+
+    def print_grid(self):
+        self.clear_screen()
+        for row in self.grid:
+            print('|' + '|'.join(row) + '|')
+        print('=' * (self.cols * 2 + 1))
+        print(' ' + ' '.join(map(str, range(1, self.cols + 1))))
+
+    def get_valid_moves(self):
+        return [col for col in range(self.cols) if self.grid[0][col] == ' ']
+
+    def drop_piece(self, col, symbol):
+        for row in reversed(self.grid):
+            if row[col] == ' ':
+                row[col] = symbol
+                return True
+        return False
+
+    def check_winner(self, symbol):
+        # Vérification horizontale
+        for row in self.grid:
+            for i in range(self.cols - 3):
+                if all(cell == symbol for cell in row[i:i+4]):
+                    return True
+
+        # Vérification verticale
+        for col in range(self.cols):
+            for i in range(self.rows - 3):
+                if all(self.grid[i+j][col] == symbol for j in range(4)):
+                    return True
+
+        # Vérification diagonales
+        for i in range(self.rows - 3):
+            for j in range(self.cols - 3):
+                if all(self.grid[i+k][j+k] == symbol for k in range(4)):
+                    return True
+                if all(self.grid[i+3-k][j+k] == symbol for k in range(4)):
+                    return True
+        return False
+
+    def smart_ai_move(self, symbol):
+        # Vérifie les victoires possibles
+        for col in self.get_valid_moves():
+            temp = [row.copy() for row in self.grid]
+            self.drop_piece(col, symbol)
+            if self.check_winner(symbol):
+                self.grid = temp
+                return col
+            self.grid = temp
+
+        # Vérifie les menaces adverses
+        opponent = 'X' if symbol == 'O' else 'O'
+        for col in self.get_valid_moves():
+            temp = [row.copy() for row in self.grid]
+            self.drop_piece(col, opponent)
+            if self.check_winner(opponent):
+                self.grid = temp
+                return col
+            self.grid = temp
+
+        # Choix aléatoire sinon
+        return random.choice(self.get_valid_moves())
+
+    def play_game(self, ai=False, smart=False):
+        while True:
+            self.print_grid()
+            print(f"Tour de : {self.players[self.current_player]}")
+
+            if ai and self.current_player == 1:
+                if smart:
+                    col = self.smart_ai_move(self.symbols[self.current_player])
+                else:
+                    col = random.choice(self.get_valid_moves())
+                print(f"L'AI choisit la colonne {col + 1}")
+            else:
+                try:
+                    col = int(input("Colonne (1-7): ")) - 1
+                    if col < 0 or col >= self.cols:
+                        raise ValueError
+                except ValueError:
+                    input("Colonne invalide. Appuyez sur Entrée...")
+                    continue
+
+            if col not in self.get_valid_moves():
+                input("Colonne pleine. Appuyez sur Entrée...")
+                continue
+
+            self.drop_piece(col, self.symbols[self.current_player])
+
+            if self.check_winner(self.symbols[self.current_player]):
+                self.print_grid()
+                winner = self.players[self.current_player]
+                print(f"{winner} gagne !")
+                self.scoreboard[winner] += 1
+                break
+
+            if not self.get_valid_moves():
+                self.print_grid()
+                print("Match nul !")
+                break
+
+            self.current_player = 1 - self.current_player
+
+        input("Appuyez sur Entrée pour revenir au menu...")
+        self.show_menu()
+
+if __name__ == "__main__":
+    game = ConnectFour()
+    game.show_menu()
