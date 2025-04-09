@@ -27,6 +27,61 @@ start_time = time.time()
 binary_index = binary_search(L, V)
 binary_time = time.time() - start_time
 
+
+
+
+ROWS = 6
+COLUMNS = 7
+
+def create_grid():
+    return [[" " for _ in range(COLUMNS)] for _ in range(ROWS)]
+
+def print_grid(grid):
+    print(" " + " ".join(str(i) for i in range(COLUMNS)))
+    for row in grid:
+        print("|" + "|".join(row) + "|")
+    print("-" * (COLUMNS * 2 + 1))
+
+def drop_piece(grid, column, piece):
+    for row in reversed(grid):
+        if row[column] == " ":
+            row[column] = piece
+            return True
+    return False
+
+def main():
+    grid = create_grid()
+    player_turn = 1
+    print_grid(grid)
+
+    while True:
+        print(f"Joueur {player_turn}")
+        try:
+            column = int(input("Choisissez une colonne (0-6): "))
+            if column < 0 or column >= COLUMNS:
+                print("Colonne invalide.")
+                continue
+        except ValueError:
+            print("Veuillez entrer un nombre.")
+            continue
+
+        piece = "X" if player_turn == 1 else "O"
+        if drop_piece(grid, column, piece):
+            print_grid(grid)
+            player_turn = 2 if player_turn == 1 else 1
+        else:
+            print("Colonne pleine. Choisissez une autre.")
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+
+
 # Измерение времени линейного поиска
 start_time = time.time()
 linear_index = linear_search(L, V)
