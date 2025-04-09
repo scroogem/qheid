@@ -1,0 +1,193 @@
+import random
+
+ROWS = 6
+COLUMNS = 7
+
+def create_grid():
+    return [[" " for _ in range(COLUMNS)] for _ in range(ROWS)]
+
+def print_grid(grid):
+    print(" " + " ".join(str(i) for i in range(COLUMNS)))
+    for row in grid:
+        print("|" + "|".join(row) + "|")
+    print("-" * (COLUMNS * 2 + 1))
+
+def drop_piece(grid, column, piece):
+    for row in reversed(grid):
+        if row[column] == " ":
+            row[column] = piece
+            return True
+    return False
+
+def is_winning_move(grid, piece):
+    for row in range(ROWS):
+        for col in range(COLUMNS - 3):
+            if all(grid[row][col + i] == piece for i in range(4)):
+                return True
+    for row in range(ROWS - 3):
+        for col in range(COLUMNS):
+            if all(grid[row + i][col] == piece for i in range(4)):
+                return True
+    for row in range(ROWS - 3):
+        for col in range(COLUMNS - 3):
+            if all(grid[row + i][col + i] == piece for i in range(4)):
+                return True
+    for row in range(ROWS - 3):
+        for col in range(3, COLUMNS):
+            if all(grid[row + i][col - i] == piece for i in range(4)):
+                return True
+    return False
+
+def is_draw(grid):
+    return all(cell != " " for row in grid for cell in row)
+
+def show_rules():
+    print("""
+RÈGLES DU JEU :
+- Deux joueurs jouent à tour de rôle.
+- À chaque tour, un joueur choisit une colonne.
+- Le pion tombe à la première case vide de la colonne.
+- Le but est d'aligner 4 pions (horizontalement, verticalement ou en diagonale).
+- Si la grille est pleine sans gagnant, c’est un match nul.
+""")
+
+def get_valid_columns(grid):
+    return [col for col in range(COLUMNS) if grid[0][col] == " "]
+
+def player_vs_player():
+    grid = create_grid()
+    player_turn = 1
+    print_grid(grid)
+
+    while True:
+        print(f"\nJoueur {player_turn}")
+        try:
+            column = int(input("Choisissez une colonne (0-6): "))
+            if column < 0 or column >= COLUMNS:
+                print("Colonne invalide.")
+                continue
+        except ValueError:
+            print("Veuillez entrer un nombre.")
+            continue
+
+        piece = "X" if player_turn == 1 else "O"
+        if drop_piece(grid, column, piece):
+            print_grid(grid)
+            if is_winning_move(grid, piece):
+                print(f"Joueur {player_turn} a gagné!")
+                break
+            elif is_draw(grid):
+                print("Match nul!")
+                break
+            player_turn = 2 if player_turn == 1 else 1
+        else:
+            print("Colonne pleine. Choisissez une autre.")
+
+def player_vs_random_bot():
+    grid = create_grid()
+    print_grid(grid)
+    player_turn = 1
+
+    while True:
+        if player_turn == 1:
+            print("\nJoueur 1")
+            try:
+                column = int(input("Choisissez une colonne (0-6): "))
+                if column < 0 or column >= COLUMNS:
+                    print("Colonne invalide.")
+                    continue
+            except ValueError:
+                print("Veuillez entrer un nombre.")
+                continue
+        else:
+            column = random.choice(get_valid_columns(grid))
+            print(f"\nBot choisit la colonne {column}")
+
+        piece = "X" if player_turn == 1 else "O"
+        if drop_piece(grid, column, piece):
+            print_grid(grid)
+            if is_winning_move(grid, piece):
+                print("Joueur 1 a gagné!" if player_turn == 1 else "Le bot a gagné!")
+                break
+            elif is_draw(grid):
+                print("Match nul!")
+                break
+            player_turn = 2 if player_turn == 1 else 1
+        else:
+            if player_turn == 1:
+                print("Colonne pleine. Choisissez une autre.")
+
+def bot_smart_move(grid, bot_piece, player_piece):
+    valid_cols = get_valid_columns(grid)
+    for col in valid_cols:
+        temp_grid = [row[:] for row in grid]
+        drop_piece(temp_grid, col, bot_piece)
+        if is_winning_move(temp_grid, bot_piece):
+            return col
+    for col in valid_cols:
+        temp_grid = [row[:] for row in grid]
+        drop_piece(temp_grid, col, player_piece)
+        if is_winning_move(temp_grid, player_piece):
+            return col
+    return random.choice(valid_cols)
+
+def player_vs_smart_bot():
+    grid = create_grid()
+    print_grid(grid)
+    player_turn = 1
+
+    while True:
+        if player_turn == 1:
+            print("\nJoueur 1")
+            try:
+                column = int(input("Choisissez une colonne (0-6): "))
+                if column < 0 or column >= COLUMNS:
+                    print("Colonne invalide.")
+                    continue
+            except ValueError:
+                print("Veuillez entrer un nombre.")
+                continue
+        else:
+            column = bot_smart_move(grid, "O", "X")
+            print(f"\nBot (intelligent) choisit la colonne {column}")
+
+        piece = "X" if player_turn == 1 else "O"
+        if drop_piece(grid, column, piece):
+            print_grid(grid)
+            if is_winning_move(grid, piece):
+                print("Joueur 1 a gagné!" if player_turn == 1 else "Le bot intelligent a gagné!")
+                break
+            elif is_draw(grid):
+                print("Match nul!")
+                break
+            player_turn = 2 if player_turn == 1 else 1
+        else:
+            if player_turn == 1:
+                print("Colonne pleine. Choisissez une autre.")
+
+def main_menu():
+    while True:
+        print("\n--- CONNECT 4 ---")
+        print("1. 2 Joueurs")
+        print("2. Contre un bot (aléatoire)")
+        print("3. Contre un bot intelligent")
+        print("4. Voir les règles")
+        print("5. Quitter")
+        choice = input("Choisissez une option: ")
+
+        if choice == "1":
+            player_vs_player()
+        elif choice == "2":
+            player_vs_random_bot()
+        elif choice == "3":
+            player_vs_smart_bot()
+        elif choice == "4":
+            show_rules()
+        elif choice == "5":
+            print("À bientôt !")
+            break
+        else:
+            print("Option invalide.")
+
+if __name__ == "__main__":
+    main_menu()
