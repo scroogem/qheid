@@ -1,0 +1,448 @@
+import pygame
+import sys
+import numpy as np
+import math
+import random
+import time
+from pygame import mixer
+
+# Initialisation de Pygame
+pygame.init()
+mixer.init()
+
+# Constantes
+BLUE = (0, 0, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+WHITE = (255, 255, 255)
+VERT = (0, 255, 0)
+PURPLE = (128, 0, 128)
+
+ROW_COUNT = 6
+COLUMN_COUNT = 7
+SQUARESIZE = 100
+RADIUS = int(SQUARESIZE/2 - 5)
+WIN_LENGTH = 4
+
+width = COLUMN_COUNT * SQUARESIZE
+height = (ROW_COUNT + 1) * SQUARESIZE + 50  # +50 pour l'espace supplémentaire
+size = (width, height)
+
+screen = pygame.display.set_mode(size)
+pygame.display.set_caption("Connect 4")
+myfont = pygame.font.SysFont("arial", 60)
+smallfont = pygame.font.SysFont("arial", 40)
+
+class Game:
+    def __init__(self):
+        self.board = np.zeros((ROW_COUNT, COLUMN_COUNT))
+        self.game_over = False
+        self.turn = 0
+        self.ai_mode = None
+        self.player_names = ["Joueur 1", "Joueur 2"]
+        self.scores = {"Joueur 1": 0, "Joueur 2": 0, "IA": 0}
+        self.last_win_positions = []
+    
+    def reset(self):
+        self.board = np.zeros((ROW_COUNT, COLUMN_COUNT))
+        self.game_over = False
+        self.last_win_positions = []
+    
+    def drop_piece(self, board, row, col, piece):
+        board[row][col] = piece
+    
+    def is_valid_location(self, board, col):
+        return board[ROW_COUNT-1][col] == 0
+    
+    def get_next_open_row(self, board, col):
+        for r in range(ROW_COUNT):
+            if board[r][col] == 0:
+                return r
+    
+    def winning_move(self, board, piece):
+        # Horizontal
+        for c in range(COLUMN_COUNT - WIN_LENGTH + 1):
+            for r in range(ROW_COUNT):
+                win = True
+                self.last_win_positions = []
+                for i in range(WIN_LENGTH):
+                    if board[r][c+i] != piece:
+                        win = False
+                        break
+                    self.last_win_positions.append((r, c+i))
+                if win:
+                    return True
+
+        # Vertical
+        for c in range(COLUMN_COUNT):
+            for r in range(ROW_COUNT - WIN_LENGTH + 1):
+                win = True
+                self.last_win_positions = []
+                for i in range(WIN_LENGTH):
+                    if board[r+i][c] != piece:
+                        win = False
+                        break
+                    self.last_win_positions.append((r+i, c))
+                if win:
+                    return True
+
+        # Diagonale (/)
+        for c in range(COLUMN_COUNT - WIN_LENGTH + 1):
+            for r in range(ROW_COUNT - WIN_LENGTH + 1):
+                win = True
+                self.last_win_positions = []
+                for i in range(WIN_LENGTH):
+                    if board[r+i][c+i] != piece:
+                        win = False
+                        break
+                    self.last_win_positions.append((r+i, c+i))
+                if win:
+                    return True
+
+        # Diagonale (\)
+        for c in range(COLUMN_COUNT - WIN_LENGTH + 1):
+            for r in range(WIN_LENGTH - 1, ROW_COUNT):
+                win = True
+                self.last_win_positions = []
+                for i in range(WIN_LENGTH):
+                    if board[r-i][c+i] != piece:
+                        win = False
+                        break
+                    self.last_win_positions.append((r-i, c+i))
+                if win:
+                    return True
+        return False
+    
+    def is_board_full(self, board):
+        return all(board[ROW_COUNT-1][c] != 0 for c in range(COLUMN_COUNT))
+    
+    def ai_move_random(self, board):
+        valid_locations = [c for c in range(COLUMN_COUNT) if self.is_valid_location(board, c)]
+        return random.choice(valid_locations) if valid_locations else None
+    
+    def ai_move_smart(self, board, piece):
+        # Vérifie si l'IA peut gagner
+        for col in range(COLUMN_COUNT):
+            if self.is_valid_location(board, col):
+                row = self.get_next_open_row(board, col)
+                temp_board = board.copy()
+                self.drop_piece(temp_board, row, col, piece)
+                if self.winning_move(temp_board, piece):
+                    return col
+        
+        # Bloque le joueur
+        opponent_piece = 1 if piece == 2 else 2
+        for col in range(COLUMN_COUNT):
+            if self.is_valid_location(board, col):
+                row = self.get_next_open_row(board, col)
+                temp_board = board.copy()
+                self.drop_piece(temp_board, row, col, opponent_piece)
+                if self.winning_move(temp_board, opponent_piece):
+                    return col
+        
+        # Mouvement aléatoire
+        return self.ai_move_random(board)
+    
+    def draw_board(self, board):
+        for c in range(COLUMN_COUNT):
+            for r in range(ROW_COUNT):
+                pygame.draw.rect(screen, BLUE, (c*SQUARESIZE, r*SQUARESIZE+SQUARESIZE+50, SQUARESIZE, SQUARESIZE))
+                pygame.draw.circle(screen, BLACK, (int(c*SQUARESIZE+SQUARESIZE/2), int(r*SQUARESIZE+SQUARESIZE+SQUARESIZE/2+50)), RADIUS)
+        
+        for c in range(COLUMN_COUNT):
+            for r in range(ROW_COUNT):      
+                if board[r][c] == 1:
+                    pygame.draw.circle(screen, RED, (int(c*SQUARESIZE+SQUARESIZE/2), height-int(r*SQUARESIZE+SQUARESIZE/2)), RADIUS)
+                elif board[r][c] == 2: 
+                    pygame.draw.circle(screen, YELLOW, (int(c*SQUARESIZE+SQUARESIZE/2), height-int(r*SQUARESIZE+SQUARESIZE/2)), RADIUS)
+        
+        # Surbrillance de la combinaison gagnante
+        for (r, c) in self.last_win_positions:
+            pygame.draw.circle(screen, VERT, (int(c*SQUARESIZE+SQUARESIZE/2), height-int(r*SQUARESIZE+SQUARESIZE/2)), RADIUS)
+        
+        pygame.display.update()
+    
+    def show_winner(self, winner):
+        pygame.draw.rect(screen, BLACK, (0, 0, width, SQUARESIZE+50))
+        
+        if winner == 1:
+            winner_name = self.player_names[0]
+            color = RED
+            self.scores[winner_name] = self.scores.get(winner_name, 0) + 1
+        else:
+            if self.ai_mode and self.turn == 1:
+                winner_name = "IA"
+                color = YELLOW
+            else:
+                winner_name = self.player_names[1]
+                color = YELLOW
+            self.scores[winner_name] = self.scores.get(winner_name, 0) + 1
+        
+        label = myfont.render(f"{winner_name} gagne !", 1, color)
+        screen.blit(label, (width/2 - label.get_width()/2, 10))
+        pygame.display.update()
+    
+    def show_draw(self):
+        pygame.draw.rect(screen, BLACK, (0, 0, width, SQUARESIZE+50))
+        label = myfont.render("Match nul !", 1, WHITE)
+        screen.blit(label, (width/2 - label.get_width()/2, 10))
+        pygame.display.update()
+    
+    def show_turn(self, turn):
+        pygame.draw.rect(screen, BLACK, (0, 0, width, SQUARESIZE+50))
+        if turn == 0:
+            text = smallfont.render(f"Tour de {self.player_names[0]}", 1, RED)
+            pygame.draw.circle(screen, RED, (int(width/2 - text.get_width()/2 - 30), int(SQUARESIZE/2 + 25)), RADIUS)
+        else:
+            if self.ai_mode:
+                text = smallfont.render("Tour de l'IA", 1, YELLOW)
+            else:
+                text = smallfont.render(f"Tour de {self.player_names[1]}", 1, YELLOW)
+            pygame.draw.circle(screen, YELLOW, (int(width/2 - text.get_width()/2 - 30), int(SQUARESIZE/2 + 25)), RADIUS)
+        
+        screen.blit(text, (width/2 - text.get_width()/2 + 40, 25))
+        pygame.display.update()
+    
+    def animate_drop(self, board, col, piece):
+        color = RED if piece == 1 else YELLOW
+        row = self.get_next_open_row(board, col)
+        
+        for r in range(-1, row):
+            pygame.draw.rect(screen, BLACK, (0, 0, width, SQUARESIZE+50))
+            self.draw_board(board)
+            
+            posx = col * SQUARESIZE + SQUARESIZE/2
+            posy = SQUARESIZE/2 + 25 if r == -1 else (r * SQUARESIZE + SQUARESIZE + SQUARESIZE/2 + 50)
+            
+            pygame.draw.circle(screen, color, (int(posx), int(posy)), RADIUS)
+            pygame.display.update()
+            pygame.time.delay(30)  # Réduit le délai pour une animation plus fluide
+    
+    def show_menu(self):
+        menu = True
+        selected = 0
+        options = [
+            "1. Joueur vs Joueur",
+            "2. Joueur vs IA (Facile)",
+            "3. Joueur vs IA (Difficile)",
+            "4. Règles du jeu",
+            "5. Scores",
+            "6. Quitter"
+        ]
+        
+        while menu:
+            screen.fill(BLACK)
+            title = myfont.render("P U I S S A N C E  4", 1, WHITE)
+            screen.blit(title, (width/2 - title.get_width()/2, 50))
+            
+            for i, option in enumerate(options):
+                color = PURPLE if i == selected else WHITE
+                text = smallfont.render(option, 1, color)
+                screen.blit(text, (width/2 - text.get_width()/2, 150 + i*60))
+            
+            pygame.display.update()
+            
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_DOWN:
+                        selected = (selected + 1) % len(options)
+                    elif event.key == pygame.K_UP:
+                        selected = (selected - 1) % len(options)
+                    elif event.key == pygame.K_RETURN:
+                        if selected == 0:  # JvsJ
+                            self.ai_mode = None
+                            self.player_names = ["Joueur 1", "Joueur 2"]
+                            return "start"
+                        elif selected == 1:  # IA Facile
+                            self.ai_mode = "easy"
+                            self.player_names = ["Joueur", "IA"]
+                            return "start"
+                        elif selected == 2:  # IA Difficile
+                            self.ai_mode = "hard"
+                            self.player_names = ["Joueur", "IA"]
+                            return "start"
+                        elif selected == 3:  # Règles
+                            return "rules"
+                        elif selected == 4:  # Scores
+                            return "scores"
+                        elif selected == 5:  # Quitter
+                            pygame.quit()
+                            sys.exit()
+                
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    pos = pygame.mouse.get_pos()
+                    for i, option in enumerate(options):
+                        text = smallfont.render(option, 1, WHITE)
+                        text_rect = text.get_rect(center=(width/2, 150 + i*60))
+                        if text_rect.collidepoint(pos):
+                            if i == 0:  # JvsJ
+                                self.ai_mode = None
+                                self.player_names = ["Joueur 1", "Joueur 2"]
+                                return "start"
+                            elif i == 1:  # IA Facile
+                                self.ai_mode = "easy"
+                                self.player_names = ["Joueur", "IA"]
+                                return "start"
+                            elif i == 2:  # IA Difficile
+                                self.ai_mode = "hard"
+                                self.player_names = ["Joueur", "IA"]
+                                return "start"
+                            elif i == 3:  # Règles
+                                return "rules"
+                            elif i == 4:  # Scores
+                                return "scores"
+                            elif i == 5:  # Quitter
+                                pygame.quit()
+                                sys.exit()
+    
+    def show_rules(self):
+        rules = [
+            "Règles du Puissance 4:",
+            "",
+            "1. Les joueurs placent leurs jetons tour à tour",
+            f"2. Le premier à aligner {WIN_LENGTH} jetons gagne",
+            "3. Les alignements peuvent être:",
+            "   - Horizontaux",
+            "   - Verticaux",
+            "   - Diagonaux",
+            "",
+            "Cliquez pour retourner"
+        ]
+        
+        waiting = True
+        while waiting:
+            screen.fill(BLACK)
+            title = myfont.render("Règles du jeu", 1, WHITE)
+            screen.blit(title, (width/2 - title.get_width()/2, 30))
+            
+            for i, line in enumerate(rules):
+                text = smallfont.render(line, 1, WHITE)
+                screen.blit(text, (width/2 - text.get_width()/2, 120 + i*40))
+            
+            pygame.display.update()
+            
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.KEYDOWN:
+                    waiting = False
+    
+    def show_scores(self):
+        waiting = True
+        while waiting:
+            screen.fill(BLACK)
+            title = myfont.render("Scores", 1, WHITE)
+            screen.blit(title, (width/2 - title.get_width()/2, 30))
+            
+            y_pos = 120
+            for player, score in self.scores.items():
+                text = smallfont.render(f"{player}: {score}", 1, WHITE)
+                screen.blit(text, (width/2 - text.get_width()/2, y_pos))
+                y_pos += 50
+            
+            text = smallfont.render("Cliquez pour retourner", 1, WHITE)
+            screen.blit(text, (width/2 - text.get_width()/2, height - 50))
+            
+            pygame.display.update()
+            
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.KEYDOWN:
+                    waiting = False
+    
+    def main_game_loop(self):
+        self.reset()
+        self.draw_board(self.board)
+        self.show_turn(self.turn)
+        
+        while not self.game_over:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                
+                if event.type == pygame.MOUSEMOTION:
+                    pygame.draw.rect(screen, BLACK, (0, 0, width, SQUARESIZE+50))
+                    posx = event.pos[0]
+                    if self.turn == 0:
+                        pygame.draw.circle(screen, RED, (posx, int(SQUARESIZE/2 + 25)), RADIUS)
+                    else:
+                        if not self.ai_mode:
+                            pygame.draw.circle(screen, YELLOW, (posx, int(SQUARESIZE/2 + 25)), RADIUS)
+                    self.show_turn(self.turn)
+                    pygame.display.update()
+                
+                if event.type == pygame.MOUSEBUTTONDOWN and (self.turn == 0 or not self.ai_mode):
+                    pygame.draw.rect(screen, BLACK, (0, 0, width, SQUARESIZE+50))
+                    
+                    posx = event.pos[0]
+                    col = int(math.floor(posx/SQUARESIZE))
+                    
+                    if self.is_valid_location(self.board, col):
+                        self.animate_drop(self.board, col, self.turn + 1)
+                        row = self.get_next_open_row(self.board, col)
+                        self.drop_piece(self.board, row, col, self.turn + 1)
+                        
+                        if self.winning_move(self.board, self.turn + 1):
+                            self.draw_board(self.board)
+                            self.show_winner(self.turn + 1)
+                            self.game_over = True
+                        elif self.is_board_full(self.board):
+                            self.draw_board(self.board)
+                            self.show_draw()
+                            self.game_over = True
+                        
+                        self.turn += 1
+                        self.turn = self.turn % 2
+                        self.show_turn(self.turn)
+            
+            # Tour de l'IA
+            if self.ai_mode and self.turn == 1 and not self.game_over:
+                pygame.time.delay(500)  # Réduit le délai
+                col = self.ai_move_random(self.board) if self.ai_mode == "easy" else self.ai_move_smart(self.board, 2)
+                
+                if col is not None and self.is_valid_location(self.board, col):
+                    self.animate_drop(self.board, col, 2)
+                    row = self.get_next_open_row(self.board, col)
+                    self.drop_piece(self.board, row, col, 2)
+                    
+                    if self.winning_move(self.board, 2):
+                        self.draw_board(self.board)
+                        self.show_winner(2)
+                        self.game_over = True
+                    elif self.is_board_full(self.board):
+                        self.draw_board(self.board)
+                        self.show_draw()
+                        self.game_over = True
+                    
+                    self.turn += 1
+                    self.turn = self.turn % 2
+                    self.show_turn(self.turn)
+            
+            if self.game_over:
+                pygame.time.delay(3000)
+                return
+
+def main():
+    game = Game()
+    
+    while True:
+        action = game.show_menu()
+        
+        if action == "start":
+            game.main_game_loop()
+        elif action == "rules":
+            game.show_rules()
+        elif action == "scores":
+            game.show_scores()
+
+if __name__ == "__main__":
+    main()
